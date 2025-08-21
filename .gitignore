@@ -1,0 +1,10 @@
+/output/
+/build/
+/buildlogs/
+/sitl/
+
+/.vscode/launch.json
+/.vscode/tasks.json
+
+__pycache__/
+*.pyc

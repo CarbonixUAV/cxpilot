@@ -1,0 +1,169 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "build aircraft",
+            "type": "shell",
+            "command": "${workspaceFolder}/tools/build/build_aircraft.py --config=${input:aircraft-config} ${input:build-args}",
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+            "problemMatcher": [{
+                "base": "$gcc",
+                // waf passes the file locations relative to the board's build directory.
+                // The problem matcher needs to know this so it can find the files correctly
+                // (this folder doesn't have to be exactly correct, nor does it technically
+                // even need to exist, it just needs to be two levels down from cxpilot-core
+                // to match the ../.. in the file paths)
+                "fileLocation": ["relative", "${workspaceFolder}/cxpilot-core/build/CubeOrangePlus"],
+            }],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+        },
+        {
+            "label": "build sitl debug",
+            "type": "shell",
+            "command": "${workspaceFolder}/tools/build/build_sitl.py",
+            "args": [
+                "--debug",
+                "--symlinks",
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+            "problemMatcher": [{
+                "base": "$gcc",
+                // waf passes the file locations relative to the board's build directory.
+                // The problem matcher needs to know this so it can find the files correctly
+                // (this folder doesn't have to be exactly correct, nor does it technically
+                // even need to exist, it just needs to be two levels down from cxpilot-core
+                // to match the ../.. in the file paths)
+                "fileLocation": ["relative", "${workspaceFolder}/cxpilot-core/build/sitl"],
+            }],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+        },
+        {
+            "label": "build periph base",
+            "type": "shell",
+            "command": "${workspaceFolder}/tools/build/build_cpns.py",
+            "args": [
+                "--build-base", "${input:periph-base}",
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+            "problemMatcher": [{
+                "base": "$gcc",
+                // waf passes the file locations relative to the board's build directory.
+                // The problem matcher needs to know this so it can find the files correctly
+                // (this folder doesn't have to be exactly correct, nor does it technically
+                // even need to exist, it just needs to be two levels down from cxpilot-core
+                // to match the ../.. in the file paths)
+                "fileLocation": ["relative", "${workspaceFolder}/cxpilot-core/build/CarbonixF405"],
+            }],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+        },
+        {
+            "label": "build CPNs",
+            "type": "shell",
+            "command": "${workspaceFolder}/tools/build/build_cpns.py",
+            "args": [
+                "--config", "${input:aircraft-config}",
+                "--build-base",
+                "--generate",
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+            "problemMatcher": [{
+                "base": "$gcc",
+                // waf passes the file locations relative to the board's build directory.
+                // The problem matcher needs to know this so it can find the files correctly
+                // (this folder doesn't have to be exactly correct, nor does it technically
+                // even need to exist, it just needs to be two levels down from cxpilot-core
+                // to match the ../.. in the file paths)
+                "fileLocation": ["relative", "${workspaceFolder}/cxpilot-core/build/CarbonixF405"],
+            }],
+            "presentation": { "reveal": "always", "panel": "dedicated", "clear": true },
+        },
+        {
+            "label": "package full aircraft",
+            "type": "shell",
+            "dependsOrder": "sequence",
+            "dependsOn": [
+                "build aircraft",
+                "build CPNs",
+            ],
+            "command": "echo Done",
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+        },
+        {
+            "label": "core submodule update",
+            "type": "shell",
+            "command": "git submodule update --init --recursive",
+            "options": {
+                "cwd": "${workspaceFolder}/cxpilot-core",
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+        },
+        {
+            "label": "core submodule nuke",
+            "type": "shell",
+            "command": "rm -r ${workspaceFolder}/cxpilot-core/modules; ${workspaceFolder}/cxpilot-core/Tools/gittools/submodule-sync.sh",
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+        },
+    ],
+    "inputs": [
+        {
+            "id": "build-args",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "echo \"--debug\n--upload\"",
+                "description": "Select build options",
+                "multiselect": true,
+                "taskId": "build-options",
+                "rememberPrevious": true,
+            },
+        },
+        {
+            "id": "aircraft-config",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "${workspaceFolder}/tools/build/build_aircraft.py",
+                "commandArgs": [
+                    "--list",
+                ],
+                "taskId": "list-aircraft-configs",
+                "rememberPrevious": true,
+            },
+        },
+        {
+            "id": "periph-base",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "${workspaceFolder}/tools/build/build_cpns.py",
+                "commandArgs": [
+                    "--list",
+                    "--allow-deprecated",
+                ],
+                "taskId": "list-periph-bases",
+                "rememberPrevious": true,
+            },
+        },
+    ],
+}

@@ -1,0 +1,57 @@
+{
+    "configurations": [
+        {
+            "name": "CubeOrangePlus",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-arm",
+            "compileCommands": [
+                "${workspaceFolder}/cxpilot-core/build/CubeOrangePlus/compile_commands.json"
+            ]
+        },
+        {
+            "name": "CPN",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-arm",
+            "compileCommands": [
+                "${workspaceFolder}/cxpilot-core/build/CarbonixF405/compile_commands.json"
+            ]
+        },
+        {
+            "name": "EIB",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-arm",
+            "compileCommands": [
+                "${workspaceFolder}/cxpilot-core/build/MatekL431-Periph/compile_commands.json"
+            ]
+        },
+        {
+            "name": "SITL",
+            "includePath": [
+                "${workspaceFolder}/**"
+            ],
+            "defines": [],
+            "cStandard": "gnu17",
+            "cppStandard": "gnu++17",
+            "intelliSenseMode": "gcc-x64",
+            "compileCommands": [
+                "${workspaceFolder}/cxpilot-core/build/sitl/compile_commands.json"
+            ]
+        }
+    ],
+    "version": 4
+}

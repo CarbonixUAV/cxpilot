@@ -1,0 +1,98 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "SITL Debug",
+            "type": "cppdbg",
+            "request": "launch",
+            "preLaunchTask": "build sitl debug",
+            "cwd": "${workspaceFolder}/sitl/${input:sitl-frames}",
+            "program": "${workspaceFolder}/cxpilot-core/build/sitl/bin/arduplane",
+            "args": [
+                "-M", "${input:frame-model}",
+                "-O", "${input:location-coords}",
+                "--defaults", "${workspaceFolder}/sitl/${input:sitl-frames}/defaults.parm",
+                "--serial0", "udpclient:${env:wslhost}:14550",
+                // "-w", // Wipe EEPROM
+            ],
+            "miDebuggerPath": "/usr/bin/gdb",
+            "postRemoteConnectCommands": [
+                {
+                    "description": "Set breakpoint at AP_HAL::panic",
+                    "text": "-break-insert AP_HAL::panic",
+                    "ignoreFailures": false,
+                },
+            ],
+            "MIMode": "gdb",
+            "launchCompleteCommand": "exec-run",
+        },
+        {
+            "name": "Autotest",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/cxpilot-config/tools/cx_autotest.py",
+            "args": [
+                // "--build",
+                // "--no-clean",
+                "test.Headless",
+            ],
+            "console": "integratedTerminal",
+        },
+        {
+            "name": "Autotest Core",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/cxpilot-core/Tools/autotest/autotest.py",
+            "args": [
+                // "build.Plane",
+                // "--no-clean",
+                "test.QuadPlane.LoiterAltQLand",
+            ],
+            "console": "integratedTerminal",
+        },
+    ],
+    "inputs": [
+        {
+            "id": "sitl-frames",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "${workspaceFolder}/tools/build/build_sitl.py",
+                "commandArgs": [
+                    "--list",
+                ],
+                "taskId": "list-sitl-frames",
+                "rememberPrevious": true,
+            },
+        },
+        {
+            "id": "frame-model",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "${workspaceFolder}/tools/build/build_sitl.py",
+                "commandArgs": [
+                    "--get-model", "${input:sitl-frames}",
+                ],
+                "useSingleResult": true,
+            },
+        },
+        {
+            "id": "location-coords",
+            "type": "command",
+            "command": "shellCommand.execute",
+            "args": {
+                "command": "echo",
+                "commandArgs": [
+                    "40.0594626,-88.5513292,206.0,0|Eli Field|40.0594626,-88.5513292,206.0,0|\n",
+                    "45.69427,-118.83401,454.09,0|Pendleton|45.69427,-118.83401,454.09,0|\n",
+                    "-33.6632464,150.8476093,8.6,0|Riverstone|-33.6632464,150.8476093,8.6,0|\n",
+                ],
+                "fieldSeparator": "|",
+                "taskId": "location-coords",
+                "rememberPrevious": true,
+                "useSingleResult": true,
+            },
+        },
+    ],
+}

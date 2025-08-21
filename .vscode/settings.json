@@ -1,0 +1,21 @@
+{
+    "python.analysis.extraPaths": [
+        "./cxpilot-core/Tools/autotest",
+        "./cxpilot-config/tools",
+        "./cxpilot-core/Tools/scripts"
+    ],
+    "json.schemas": [
+        {
+            "fileMatch": [
+                ".vscode/*.json"
+            ],
+            "schema": {
+                "allowTrailingCommas": true,
+                "allowComments": true,
+            }
+        }
+    ],
+    "Lua.workspace.library": [
+        "${workspaceFolder}/cxpilot-core/libraries/AP_Scripting/docs"
+    ]
+}

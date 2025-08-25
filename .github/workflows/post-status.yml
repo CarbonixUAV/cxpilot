@@ -1,0 +1,64 @@
+name: Post Build Status
+on:
+  workflow_run:
+    workflows: [Build]
+    types: completed
+
+permissions:
+  contents: none
+
+jobs:
+  report:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Check for status-map artifact
+        id: probe
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const { owner, repo } = context.repo;
+            const run_id = ${{ github.event.workflow_run.id }};
+            const r = await github.rest.actions.listWorkflowRunArtifacts({ owner, repo, run_id });
+            const hit = r.data.artifacts.find(a => a.name === 'status-map' && !a.expired);
+            core.setOutput('found', hit ? 'true' : 'false');
+
+      - if: ${{ steps.probe.outputs.found == 'true' }}
+        name: Download status-map
+        uses: actions/download-artifact@v5
+        with:
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          name: status-map
+          path: .
+
+      - if: ${{ steps.probe.outputs.found == 'true' }}
+        uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: cxpilot, cxpilot-core, cxpilot-config
+
+      - if: ${{ steps.probe.outputs.found == 'true' }}
+        name: Post final status
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ steps.app.outputs.token }} # or create-github-app-token first
+          script: |
+            const fs = require('fs');
+            const owner = context.repo.owner;
+            const map = JSON.parse(fs.readFileSync('status-map.json','utf8')); // {repo_name: sha}
+            const concl = '${{ github.event.workflow_run.conclusion }}'; // success|failure|cancelled|timed_out
+            const state = concl === 'success' ? 'success' :
+                          concl === 'cancelled' ? 'error' : 'failure';
+            const runUrl = '${{ github.event.workflow_run.html_url }}';
+            for (const [repo, sha] of Object.entries(map)) {
+              await github.rest.repos.createCommitStatus({
+                owner, repo, sha,
+                state,
+                context: 'CxPilot Build',
+                description: `${concl}`,
+                target_url: runUrl
+              });
+            }

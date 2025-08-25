@@ -1,0 +1,63 @@
+name: s3-upload
+description: Upload a files to S3
+inputs:
+  s3_path:
+    description: "S3 root URI"
+    required: true
+  target:
+    description: "File or folder to upload"
+    required: true
+  aws_key_id:
+    description: "AWS access key ID"
+    required: true
+  aws_secret:
+    description: "AWS secret access key"
+    required: true
+  aws_region:
+    description: "AWS region"
+    required: true
+  install_aws_cli:
+    description: "Whether to install AWS CLI (needed for ArduPilot containers)"
+    required: false
+    default: "false"
+runs:
+  using: "composite"
+  steps:
+    - name: Install AWS CLI
+      if: ${{ inputs.install_aws_cli == 'true' }}
+      shell: bash
+      run: |
+        set -e
+        apt-get update -y
+        DEBIAN_FRONTEND=noninteractive apt-get install -y curl unzip
+        curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip"
+        unzip -q awscliv2.zip
+        ./aws/install --update
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ inputs.aws_key_id }}
+        aws-secret-access-key: ${{ inputs.aws_secret }}
+        aws-region: ${{ inputs.aws_region }}
+
+    - name: Upload to S3
+      shell: bash
+      run: |
+        set -e
+        PATH_TO_S3="${{ inputs.s3_path }}"
+        TARGET="${{ inputs.target }}"
+        # If the target is a directory, add --recursive to the command
+        if [[ -d "$TARGET" ]]; then
+          TARGET="${TARGET%/}/"  # Ensure target ends with /
+          PATH_TO_S3="${PATH_TO_S3%/}/"  # Ensure S3 path ends with /
+          RECURSIVE="--recursive"
+        elif [[ -f "$TARGET" ]]; then
+          RECURSIVE=""
+        else
+          echo "Error: Target '$TARGET' is not a valid file or directory."
+          ls -lR .
+          exit 1
+        fi
+        echo "Uploading \"$TARGET\" to: \"$PATH_TO_S3\""
+        aws s3 cp $TARGET $PATH_TO_S3 $RECURSIVE

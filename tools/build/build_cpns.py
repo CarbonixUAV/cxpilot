@@ -165,6 +165,7 @@ def main():
         action="store_true",
         help="List all unique base firmware builds (before modifying with board name and defaults)."
     )
+    parser.add_argument("--json", action="store_true", help="Use with --list-bases to output the list in JSON format.")
     parser.add_argument(
         "--build-base",
         action="append",
@@ -190,6 +191,10 @@ def main():
         configs = ac_config_tools.get_configs(allow_deprecated=args.allow_deprecated)
 
     if args.list_bases:
+        if args.json:
+            import json
+            print(json.dumps(get_base_builds(configs)))
+            return
         for base_build in get_base_builds(configs):
             print(base_build)
         return

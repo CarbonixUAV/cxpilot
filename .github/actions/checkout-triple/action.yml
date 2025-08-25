@@ -1,0 +1,58 @@
+name: checkout-triple
+description: "Checkout integration + submodules at specific refs; optional recursive core submodules"
+inputs:
+  config_ref:
+    description: "Ref/SHA for cxpilot-config"
+    required: true
+  core_ref:
+    description: "Ref/SHA for cxpilot-core (optional; default don't check out)"
+    required: false
+    default: ""
+  core_submodules:
+    description: "If 'true', check out cxpilot-core's submodules recursively"
+    required: false
+    default: "true"
+  core_tools_only:
+    description: "If 'true', check out only the Tools folder of cxpilot-core"
+    required: false
+    default: "false"
+  depth:
+    description: "Fetch depth"
+    required: false
+    default: "1"
+runs:
+  using: "composite"
+  steps:
+    - name: trust workspace
+      shell: bash
+      run: git config --global --add safe.directory '*'
+
+    - name: init submodules shallow
+      shell: bash
+      run: git submodule update --init --depth ${{ inputs.depth }} cxpilot-core cxpilot-config
+
+    - name: checkout cxpilot-core
+      if: ${{ inputs.core_ref != '' }}
+      shell: bash
+      run: |
+        set -e
+        cd cxpilot-core
+        git fetch origin ${{ inputs.core_ref }} --depth ${{ inputs.depth }}
+        if [ "${{ inputs.core_tools_only }}" = "true" ]; then
+          git sparse-checkout init --cone
+          git sparse-checkout set Tools
+        fi
+        git checkout --detach ${{ inputs.core_ref }}
+
+    - name: checkout core submodules (optional)
+      if: ${{ inputs.core_submodules == 'true' && inputs.core_tools_only != 'true' }}
+      shell: bash
+      run: git submodule update --init --recursive --depth ${{ inputs.depth }}
+
+    - name: checkout cxpilot-config
+      shell: bash
+      run: |
+        set -e
+        cd cxpilot-config
+        git fetch origin ${{ inputs.config_ref }} --depth ${{ inputs.depth }}
+        git checkout --detach ${{ inputs.config_ref }}

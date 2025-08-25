@@ -1,67 +1,281 @@
-name: build
+name: Build
+run-name: Build ${{ inputs.feature_branch || github.event.pull_request.head.ref }}
 on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+    paths-ignore:
+      - 'tools/rebase/**'
+      - 'tools/setup/**'
+      - '.vscode/**'
+      - '**.md'
+  release:
+    types: [published]
   workflow_dispatch:
+    inputs:
+      feature_branch:
+        description: 'Feature branch (optional)'
+        required: false
+        default: ''
+      skip_s3_upload:
+        description: 'Skip upload to S3 (for testing)'
+        required: false
+        default: false
+        type: boolean
 
 permissions:
   contents: read
   id-token: write
 
 concurrency:
-  group: ci-${{github.workflow}}-${{ github.ref }} # TODO: need to make this unique when having external PRs trigger this
+  group: ci-${{ github.event.pull_request.base.ref || github.ref_name }}-${{ github.event.pull_request.head.ref || inputs.feature_branch || '' }}
   cancel-in-progress: true
 
 jobs:
-  setup-s3-path:
+  set-up-variables:
     runs-on: ubuntu-22.04
     outputs:
-      folder_name: ${{ steps.out.outputs.folder_name }}
+      folder_name:     ${{ steps.out.outputs.folder_name }}
+      s3_path:         ${{ steps.out.outputs.s3_path }}
+      integration_sha: ${{ steps.out.outputs.integration_sha }}
+      core_sha:        ${{ steps.out.outputs.core_sha }}
+      config_sha:      ${{ steps.out.outputs.config_sha }}
+      configs:         ${{ steps.out.outputs.configs }}
+      bases:           ${{ steps.out.outputs.bases }}
+      status_json:     ${{ steps.out.outputs.status_json }}
     steps:
-      - name: Set folder name
-        id: out
-        run: |
-          echo "folder_name=cxpilot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
-
-  discover:
-    runs-on: ubuntu-22.04
-    outputs:
-      configs: ${{ steps.out.outputs.configs }}
-      bases:   ${{ steps.out.outputs.bases }}
-    steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           submodules: false
-      - name: Init config submodule only
-        run: |
-          git submodule update --init --depth 1 cxpilot-config
       - id: out
         shell: bash
         env:
-          PYTHONUNBUFFERED: "1"
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          set -euo pipefail
+          set -Eeuo pipefail
+          trap 'echo "::error::failed at line ${LINENO}: ${BASH_COMMAND}"; exit 1' ERR
+
+          # -------- Set up refs/folders based on inputs --------
+          if [[ ${{ github.event_name }} == 'pull_request' ]]; then
+            # PR event - use base ref as target, head ref as feature (if any)
+            echo "Event: pull_request"
+            echo "  base:    ${{ github.event.pull_request.base.ref }}"
+            echo "  feature: ${{ github.event.pull_request.head.ref }}"
+            FEATURE_REF="${{ github.event.pull_request.head.ref }}"
+            BASE_REF="${{ github.event.pull_request.base.ref }}"
+          elif [[ ${{ github.event_name }} == 'workflow_dispatch' ]]; then
+            # Bot/manual dispatch
+            echo "Event: workflow_dispatch"
+            echo "  feature: ${{ inputs.feature_branch }}"
+            FEATURE_REF="${{ inputs.feature_branch }}"
+            BASE_REF="${{ github.ref_name }}"
+          elif [[ ${{ github.event_name }} == 'release' ]]; then
+            # Release event - use tag as target, no feature branch
+            echo "Event: release"
+            echo "  tag:     ${{ github.event.release.tag_name }}"
+            FEATURE_REF=""
+            BASE_REF="${{ github.event.release.tag_name }}"
+            S3_ROOT="${{ vars.S3_RELEASE_ROOT }}"
+          else
+            echo "ERROR: Unsupported event ${{ github.event_name }}" >&2
+            exit 1
+          fi
+
+          # -------- Pin specific SHAs to avoid race conditions --------
+          INTEG_URL=$(git config --get remote.origin.url)
+          CFG_URL=$(git config -f .gitmodules --get submodule.cxpilot-config.url)
+          CORE_URL=$(git config -f .gitmodules --get submodule.cxpilot-core.url)
+          # Usage: resolve_ref <url> <ref> <fallback_ref>
+          resolve_ref() {
+            local url="$1" ref="$2" fb="$3"
+            local sha found_ref
+            sha="$(git ls-remote --heads "$url" "refs/heads/$ref" | awk '{print $1}')"
+            if [[ -n "$sha" ]]; then
+              found_ref="$ref"
+            else
+              sha="$(git ls-remote --heads "$url" "refs/heads/$fb" | awk '{print $1}')"
+              if [[ -n "$sha" ]]; then
+                found_ref="$fb"
+              else
+                echo "ERROR: Could not find '$ref' or '$fb' on $url" >&2
+                exit 1
+              fi
+            fi
+            printf '%s %s' "$sha" "$found_ref"
+          }
+          read INTEG_SHA INTEG_REF <<<"$(resolve_ref "$INTEG_URL" "$FEATURE_REF" "$BASE_REF")"
+          read CFG_SHA   CFG_REF   <<<"$(resolve_ref "$CFG_URL"   "$FEATURE_REF" "$BASE_REF")"
+          read CORE_SHA  CORE_REF  <<<"$(resolve_ref "$CORE_URL"  "$FEATURE_REF" "$BASE_REF")"
+
+          echo "integration_sha=$INTEG_SHA" >> "$GITHUB_OUTPUT"
+          echo "core_sha=$CORE_SHA"         >> "$GITHUB_OUTPUT"
+          echo "config_sha=$CFG_SHA"        >> "$GITHUB_OUTPUT"
+
+          echo "Resolved refs:"
+          echo "  integration: $INTEG_REF ($INTEG_SHA)"
+          echo "  config:      $CFG_REF ($CFG_SHA)"
+          echo "  core:        $CORE_REF ($CORE_SHA)"
+
+          # If feature branch was requested, ensure it was used by at least one repo
+          if [[ -n "$FEATURE_REF" ]]; then
+            if [[ "$INTEG_REF" != "$FEATURE_REF" && "$CORE_REF" != "$FEATURE_REF" && "$CFG_REF" != "$FEATURE_REF" ]]; then
+              echo "ERROR: Could not find requested feature branch '$FEATURE_REF' on any repo" >&2
+              exit 1
+            fi
+          fi
+
+          # If a release build is requested, ensure that the submodule SHAs match the tag
+          if [[ ${{ github.event_name }} == 'release' ]]; then
+            # get the submodule SHAs that are committed in ${INTEG_SHA}
+            COMMITTED_CFG_SHA=$(git ls-tree "$INTEG_SHA" cxpilot-config | awk '{print $3}')
+            COMMITTED_CORE_SHA=$(git ls-tree "$INTEG_SHA" cxpilot-core | awk '{print $3}')
+            if [[ "$COMMITTED_CFG_SHA" != "$CFG_SHA" ]]; then
+              echo "ERROR: cxpilot-config SHA $CFG_SHA does not match the committed SHA $COMMITTED_CFG_SHA in integration $INTEG_SHA" >&2
+              echo "ERROR: A mistake was made during the release commit. The submodules should be set to the release tag." >&2
+              exit 1
+            fi
+            if [[ "$COMMITTED_CORE_SHA" != "$CORE_SHA" ]]; then
+              echo "ERROR: cxpilot-core SHA $CORE_SHA does not match the committed SHA $COMMITTED_CORE_SHA in integration $INTEG_SHA" >&2
+              echo "ERROR: A mistake was made during the release commit. The submodules should be set to the release tag." >&2
+              exit 1
+            fi
+          fi
+
+          # -------- checkout integration to read version.txt --------
+          git fetch origin "$INTEG_SHA" --depth 1
+          git checkout --detach "$INTEG_SHA"
+
+          # -------- derive folder/S3 path --------
+          DATE_HR=$(date +%Y%m%d_%H%M)
+          FIRMWARE_VERSION="$(tr -d ' \n' < version.txt)"
+          # Take the first 4 chars of the three SHAs to identify the build
+          COMMIT_ID="${INTEG_SHA:0:4}_${CORE_SHA:0:4}_${CFG_SHA:0:4}"
+          if [[ ${{ github.event_name }} == 'release' ]]; then
+            S3_ROOT="${{ vars.S3_RELEASE_ROOT }}"
+            FOLDER_NAME="${DATE_HR}_${FIRMWARE_VERSION}_${#INTEG_SHA:0:8}"
+          elif [[ -n "$FEATURE_REF" ]]; then
+            S3_ROOT="${{ vars.S3_DEV_ROOT }}/Feature/${BASE_REF//\//-}"
+            # For feature builds, use the JIRA ID instead of the firmware version
+            # if one is present in the branch name
+            if [[ "$FEATURE_REF" =~ SW-[0-9]+ ]]; then
+              JIRA_ID="${BASH_REMATCH[0]}"
+              FOLDER_NAME="${DATE_HR}_${JIRA_ID}_${COMMIT_ID}"
+            else
+              # Otherwise just use the branch name (sanitized)
+              BRANCH_NAME="${FEATURE_REF#feature/}"
+              BRANCH_NAME="${BRANCH_NAME//\//-}"
+              BRANCH_NAME="${BRANCH_NAME:0:20}" # clip to 20 chars
+              FOLDER_NAME="${DATE_HR}_${BRANCH_NAME}_${COMMIT_ID}"
+            fi
+          else
+            S3_ROOT="${{ vars.S3_DEV_ROOT }}/${BASE_REF//\//-}"
+            FOLDER_NAME="${DATE_HR}_${FIRMWARE_VERSION}_${COMMIT_ID}"
+          fi
+          # Take the first 4 chars of the three SHAs to identify the build
+          echo "folder_name=$FOLDER_NAME" >> "$GITHUB_OUTPUT"
+          echo "s3_path=${S3_ROOT}/${FOLDER_NAME}" >> "$GITHUB_OUTPUT"
+
+          # -------- init config at resolved SHA to run listing --------
+          git submodule update --init --depth 1 cxpilot-config
+          git -C cxpilot-config fetch origin "$CFG_SHA" --depth 1
+          git -C cxpilot-config checkout --detach "$CFG_SHA"
+
+          # -------- discover matrices (JSON) --------
           CONFIGS_JSON="$(python tools/build/build_aircraft.py --list --json)"
           BASES_JSON="$(python tools/build/build_cpns.py --list-bases --json)"
           echo "configs=${CONFIGS_JSON}" >> "$GITHUB_OUTPUT"
-          echo "bases=${BASES_JSON}"     >> "$GITHUB_OUTPUT"
+          echo "bases=${BASES_JSON}" >> "$GITHUB_OUTPUT"
+
+          # ------- output for logging --------
+          echo "----- GITHUB_OUTPUT -----"
+          cat "$GITHUB_OUTPUT"
+          echo "-------------------------"
+
+          # -------- prepare list of repo/sha to post status to --------
+          STATUS_JSON='{}'
+          if [[ "$CORE_REF" == "$FEATURE_REF" ]]; then
+            CORE_NAME=$(gh repo view $CORE_URL --json name -q .name)
+            STATUS_JSON="$(jq -c --arg k "$CORE_NAME" --arg v "$CORE_SHA" '. + {($k):$v}' <<<"$STATUS_JSON")"
+          fi
+          if [[ "$CFG_REF" == "$FEATURE_REF" ]]; then
+            CFG_NAME=$(gh repo view $CFG_URL --json name -q .name)
+            STATUS_JSON="$(jq -c --arg k "$CFG_NAME" --arg v "$CFG_SHA" '. + {($k):$v}' <<<"$STATUS_JSON")"
+          fi
+          if [[ "STATUS_JSON" != '{}' ]]; then
+            echo "status_json=$STATUS_JSON" >> "$GITHUB_OUTPUT"
+            echo "$STATUS_JSON" > status-map.json
+          fi
+
+      - name: Upload status map
+        if: ${{ steps.out.outputs.status_json != '{}' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: status-map
+          path: status-map.json
+      - name: Generate token to post statuses
+        if: ${{ steps.out.outputs.status_json != '{}' }}
+        uses: actions/create-github-app-token@v2
+        id: app
+        with:
+          app-id: ${{ secrets.CI_BOT_APP_ID }}
+          private-key: ${{ secrets.CI_BOT_PRIVATE_KEY }}
+          owner: ${{ github.repository_owner }}
+          repositories: cxpilot, cxpilot-core, cxpilot-config
+      - name: Post pending statuses
+        if: ${{ steps.out.outputs.status_json != '{}' }}
+        uses: actions/github-script@v7
+        env:
+          STATUS_JSON: ${{ steps.out.outputs.status_json }}
+        with:
+          github-token: ${{ steps.app.outputs.token }}
+          script: |
+            const status_map = JSON.parse(process.env.STATUS_JSON);
+            for (const [repo, sha] of Object.entries(status_map)) {
+              console.log(`Posting pending status to ${repo} at ${sha}`);
+              await github.rest.repos.createCommitStatus({
+                owner: context.repo.owner,
+                repo: repo,
+                sha: sha,
+                state: 'pending',
+                context: 'CxPilot Build',
+                description: 'Build is in progress',
+                target_url: `${process.env.GITHUB_SERVER_URL}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+              });
+            }
+
           
   build-aircraft:
     runs-on: ubuntu-22.04
     container: ardupilot/ardupilot-dev-chibios:v0.1.3
-    needs: discover
+    needs: set-up-variables
     strategy:
       fail-fast: false
       matrix:
-        config: ${{ fromJson(needs.discover.outputs.configs) }}
+        config: ${{ fromJson(needs.set-up-variables.outputs.configs) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          submodules: recursive
+          ref: ${{ needs.set-up-variables.outputs.integration_sha }}
+          submodules: false
+      - uses: ./.github/actions/checkout-triple
+        with:
+          config_ref: ${{ needs.set-up-variables.outputs.config_sha }}
+          core_ref:   ${{ needs.set-up-variables.outputs.core_sha }}
       - name: Build ${{ matrix.config }}
         shell: bash
         run: |
           set -e
           git config --global --add safe.directory ${GITHUB_WORKSPACE}
           python tools/build/build_aircraft.py  --clean --require-clean-git --config "${{ matrix.config }}"
+      - name: Upload to S3
+        if: ${{ inputs.skip_s3_upload != 'false' }}
+        uses: ./.github/actions/s3-upload
+        with:
+          s3_path: ${{ needs.set-up-variables.outputs.s3_path }}
+          target: output/
+          aws_key_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+          aws_secret: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+          aws_region: ${{ vars.AWS_S3_REGION }}
+          install_aws_cli: true
       - uses: actions/upload-artifact@v4
         with:
           name: output-fc-${{ matrix.config }}
@@ -72,15 +286,20 @@ jobs:
   build-periph-bases:
     runs-on: ubuntu-22.04
     container: ardupilot/ardupilot-dev-chibios:v0.1.3
-    needs: discover
+    needs: set-up-variables
     strategy:
       fail-fast: false
       matrix:
-        base: ${{ fromJson(needs.discover.outputs.bases) }}
+        base: ${{ fromJson(needs.set-up-variables.outputs.bases) }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          submodules: recursive
+          ref: ${{ needs.set-up-variables.outputs.integration_sha }}
+          submodules: false
+      - uses: ./.github/actions/checkout-triple
+        with:
+          config_ref: ${{ needs.set-up-variables.outputs.config_sha }}
+          core_ref:   ${{ needs.set-up-variables.outputs.core_sha }}
       - name: Build ${{ matrix.base }}
         run: |
           set -e
@@ -95,24 +314,37 @@ jobs:
 
   generate-cpns:
     runs-on: ubuntu-22.04
-    needs: [build-periph-bases]
+    needs: [set-up-variables, build-periph-bases]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
-          submodules: true # not recursive, we don't need core's submodules for this step
+          ref: ${{ needs.set-up-variables.outputs.integration_sha }}
+          submodules: false
+      - uses: ./.github/actions/checkout-triple
+        with:
+          config_ref:      ${{ needs.set-up-variables.outputs.config_sha }}
+          core_ref:        ${{ needs.set-up-variables.outputs.core_sha }}
+          core_tools_only: true # Only need core for apj_tool
       - name: Fetch base artifacts
         uses: actions/download-artifact@v5
         with:
           path: build/base_builds
           pattern: base-*
           merge-multiple: true
-      - name: list downloaded base builds
-        shell: bash
-        run: ls -lR build/base_builds
       - name: Generate all CPNs
         shell: bash
         run: |
+          set -e
           python tools/build/build_cpns.py --generate
+      - name: Upload to S3
+        if: ${{ inputs.skip_s3_upload != 'false' }}
+        uses: ./.github/actions/s3-upload
+        with:
+          s3_path: ${{ needs.set-up-variables.outputs.s3_path }}
+          target: output/
+          aws_key_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+          aws_secret: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+          aws_region: ${{ vars.AWS_S3_REGION }}
       - uses: actions/upload-artifact@v4
         with:
           name: output-cpns
@@ -122,29 +354,42 @@ jobs:
 
   create-upload-zip:
     runs-on: ubuntu-22.04
-    needs: [setup-s3-path, build-aircraft, generate-cpns]
+    needs: [set-up-variables, build-aircraft, generate-cpns]
     env:
-      folder_name: ${{ needs.setup-s3-path.outputs.folder_name }}
+      folder_name: ${{ needs.set-up-variables.outputs.folder_name }}
     steps:
+      - uses: actions/checkout@v5
+        if: ${{ inputs.skip_s3_upload != 'false' }}
+        with:
+          ref: ${{ needs.set-up-variables.outputs.integration_sha }}
+          submodules: false
+          sparse-checkout: .github/actions/s3-upload
       - name: Download artifacts
         uses: actions/download-artifact@v5
         with:
           pattern: output-*
           path: output
           merge-multiple: true
-      - name: list downloaded artifacts
-        shell: bash
-        run: ls -lR output
       - name: Install 7zip
         run: sudo apt-get install -y p7zip-full
       - name: 7zip the folder
         run: |
           cd output
           7z a ../${{ env.folder_name }}.7z .
+          cd ..
+          ls -lR .
       - name: Upload 7z folder to artifacts
         uses: actions/upload-artifact@v4
         with:
           name: ${{ env.folder_name }}
           path: ${{ env.folder_name }}.7z
           retention-days: 15
-      
+      - name: Upload to S3
+        if: ${{ inputs.skip_s3_upload != 'false' }}
+        uses: ./.github/actions/s3-upload
+        with:
+          s3_path: ${{ needs.set-up-variables.outputs.s3_path }}/${{ env.folder_name }}.7z
+          target: ${{ env.folder_name }}.7z
+          aws_key_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+          aws_secret: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+          aws_region: ${{ vars.AWS_S3_REGION }}

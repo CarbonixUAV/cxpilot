@@ -177,6 +177,7 @@ def main():
     parser.add_argument('--waf-clean', action='store_true', help='Run waf clean before building')
     parser.add_argument('--waf-distclean', action='store_true', help='Run waf distclean before building')
     parser.add_argument('--list', action='store_true', help='List all detected configs (inc. deprecated if allowed) and exit')
+    parser.add_argument('--json', action='store_true', help='Use with --list to output the list in JSON format')
     parser.add_argument('--allow-deprecated', action='store_true', help='Allow deprecated configurations to be listed')
     parser.add_argument('--clean', action='store_true', help='clean the build/output directory before building')
     args = parser.parse_args()
@@ -185,6 +186,10 @@ def main():
 
     # List configs and exit
     if args.list:
+        if args.json:
+            import json
+            print(json.dumps(configs))
+            return
         for c in configs:
             print(c)
         return

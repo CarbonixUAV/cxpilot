@@ -1,0 +1,150 @@
+name: build
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: ci-${{github.workflow}}-${{ github.ref }} # TODO: need to make this unique when having external PRs trigger this
+  cancel-in-progress: true
+
+jobs:
+  setup-s3-path:
+    runs-on: ubuntu-22.04
+    outputs:
+      folder_name: ${{ steps.out.outputs.folder_name }}
+    steps:
+      - name: Set folder name
+        id: out
+        run: |
+          echo "folder_name=cxpilot-$(date +'%Y%m%d-%H%M%S')" >> $GITHUB_OUTPUT
+
+  discover:
+    runs-on: ubuntu-22.04
+    outputs:
+      configs: ${{ steps.out.outputs.configs }}
+      bases:   ${{ steps.out.outputs.bases }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: false
+      - name: Init config submodule only
+        run: |
+          git submodule update --init --depth 1 cxpilot-config
+      - id: out
+        shell: bash
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -euo pipefail
+          CONFIGS_JSON="$(python tools/build/build_aircraft.py --list --json)"
+          BASES_JSON="$(python tools/build/build_cpns.py --list-bases --json)"
+          echo "configs=${CONFIGS_JSON}" >> "$GITHUB_OUTPUT"
+          echo "bases=${BASES_JSON}"     >> "$GITHUB_OUTPUT"
+          
+  build-aircraft:
+    runs-on: ubuntu-22.04
+    container: ardupilot/ardupilot-dev-chibios:v0.1.3
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        config: ${{ fromJson(needs.discover.outputs.configs) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build ${{ matrix.config }}
+        shell: bash
+        run: |
+          set -e
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          python tools/build/build_aircraft.py  --clean --require-clean-git --config "${{ matrix.config }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: output-fc-${{ matrix.config }}
+          path: output
+          if-no-files-found: error
+          retention-days: 1
+
+  build-periph-bases:
+    runs-on: ubuntu-22.04
+    container: ardupilot/ardupilot-dev-chibios:v0.1.3
+    needs: discover
+    strategy:
+      fail-fast: false
+      matrix:
+        base: ${{ fromJson(needs.discover.outputs.bases) }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Build ${{ matrix.base }}
+        run: |
+          set -e
+          git config --global --add safe.directory ${GITHUB_WORKSPACE}
+          python tools/build/build_cpns.py --clean --require-clean-git --build-base "${{ matrix.base }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: base-${{ matrix.base }}
+          path: build/base_builds
+          if-no-files-found: error
+          retention-days: 1
+
+  generate-cpns:
+    runs-on: ubuntu-22.04
+    needs: [build-periph-bases]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true # not recursive, we don't need core's submodules for this step
+      - name: Fetch base artifacts
+        uses: actions/download-artifact@v5
+        with:
+          path: build/base_builds
+          pattern: base-*
+          merge-multiple: true
+      - name: list downloaded base builds
+        shell: bash
+        run: ls -lR build/base_builds
+      - name: Generate all CPNs
+        shell: bash
+        run: |
+          python tools/build/build_cpns.py --generate
+      - uses: actions/upload-artifact@v4
+        with:
+          name: output-cpns
+          path: output
+          if-no-files-found: error
+          retention-days: 1
+
+  create-upload-zip:
+    runs-on: ubuntu-22.04
+    needs: [setup-s3-path, build-aircraft, generate-cpns]
+    env:
+      folder_name: ${{ needs.setup-s3-path.outputs.folder_name }}
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v5
+        with:
+          pattern: output-*
+          path: output
+          merge-multiple: true
+      - name: list downloaded artifacts
+        shell: bash
+        run: ls -lR output
+      - name: Install 7zip
+        run: sudo apt-get install -y p7zip-full
+      - name: 7zip the folder
+        run: |
+          cd output
+          7z a ../${{ env.folder_name }}.7z .
+      - name: Upload 7z folder to artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.folder_name }}
+          path: ${{ env.folder_name }}.7z
+          retention-days: 15
+      

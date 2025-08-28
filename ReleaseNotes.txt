@@ -1,4 +1,4 @@
-Release 7.2.0 1st July 2025
+Release 7.2.0 1st July 2025 
 ------------------------------------------------------------------
 This is the first release for the Octo Ottano. This contains many small improvements to Ottano as a
 whole.

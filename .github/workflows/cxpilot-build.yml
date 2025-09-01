@@ -34,14 +34,15 @@ jobs:
   set-up-variables:
     runs-on: ubuntu-22.04
     outputs:
-      folder_name:     ${{ steps.out.outputs.folder_name }}
-      s3_path:         ${{ steps.out.outputs.s3_path }}
-      integration_sha: ${{ steps.out.outputs.integration_sha }}
-      core_sha:        ${{ steps.out.outputs.core_sha }}
-      config_sha:      ${{ steps.out.outputs.config_sha }}
-      configs:         ${{ steps.out.outputs.configs }}
-      bases:           ${{ steps.out.outputs.bases }}
-      status_json:     ${{ steps.out.outputs.status_json }}
+      folder_name:      ${{ steps.out.outputs.folder_name }}
+      s3_path:          ${{ steps.out.outputs.s3_path }}
+      firmware_version: ${{ steps.out.outputs.firmware_version }}
+      integration_sha:  ${{ steps.out.outputs.integration_sha }}
+      core_sha:         ${{ steps.out.outputs.core_sha }}
+      config_sha:       ${{ steps.out.outputs.config_sha }}
+      configs:          ${{ steps.out.outputs.configs }}
+      bases:            ${{ steps.out.outputs.bases }}
+      status_json:      ${{ steps.out.outputs.status_json }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -147,6 +148,7 @@ jobs:
           # -------- derive folder/S3 path --------
           DATE_HR=$(date +%Y%m%d_%H%M)
           FIRMWARE_VERSION="$(tr -d ' \n' < version.txt)"
+          echo "firmware_version=$FIRMWARE_VERSION" >> "$GITHUB_OUTPUT"
           # Take the first 4 chars of the three SHAs to identify the build
           COMMIT_ID="${INTEG_SHA:0:4}_${CORE_SHA:0:4}_${CFG_SHA:0:4}"
           if [[ ${{ github.event_name }} == 'release' ]]; then
@@ -352,9 +354,143 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
+  build-sitl:
+    runs-on: 'windows-latest'
+    needs: set-up-variables
+    steps:
+      # We can't use checkout-triple here because it's tricky with Cygwin,
+      # so we manually checkout the right SHAs later
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.set-up-variables.outputs.integration_sha }}
+          submodules: 'recursive'
+          clean: false
+      - name: Prepare ccache timestamp
+        id: ccache_cache_timestamp
+        shell: bash
+        run: |
+          NOW=$(date -u +"%F-%T")
+          echo "timestamp=${NOW}" >> $GITHUB_OUTPUT
+          WORKFLOWNAME="${{github.workflow}}"
+          NAME_DASHED=${WORKFLOWNAME//+( )/_}
+          echo "cache-key=${NAME_DASHED}" >> $GITHUB_OUTPUT
+      - uses: cygwin/cygwin-install-action@v6
+        with:
+          packages: cygwin64 gcc-g++=10.2.0-1 ccache python39 python39-future python39-lxml python39-pip python39-setuptools python39-wheel git procps gettext
+          add-to-path: false
+      - name: checkout submodules
+        shell: C:\cygwin\bin\bash.exe -eo pipefail '{0}'
+        run: >-
+          git config --global --add safe.directory '*' &&
+          git submodule update --init --depth 1 cxpilot-core cxpilot-config &&
+          cd cxpilot-core &&
+          git fetch origin ${{ needs.set-up-variables.outputs.core_sha }} --depth 1 &&
+          git checkout --detach ${{ needs.set-up-variables.outputs.core_sha }} &&
+          ./Tools/gittools/submodule-sync.sh &&
+          cd ../cxpilot-config &&
+          git fetch origin ${{ needs.set-up-variables.outputs.config_sha }} --depth 1 &&
+          git checkout --detach ${{ needs.set-up-variables.outputs.config_sha }}
+      # Put ccache into github cache for faster build
+      - name: setup ccache
+        env:
+          PATH: /usr/bin:$(cygpath ${SYSTEMROOT})/system32
+        shell: C:\cygwin\bin\bash.exe -eo pipefail -o igncr '{0}'
+        id: setup_ccache
+        run: |
+          CYGPATH_GITHUB_WORKSPACE=$(cygpath -u "$GITHUB_WORKSPACE")
+          mkdir -p "${CYGPATH_GITHUB_WORKSPACE}/ccache"
+          mkdir -p /usr/local/etc
+          echo "export CCACHE_SLOPPINESS=file_stat_matches" >> ~/ccache.conf
+          echo "export CCACHE_DIR=${CYGPATH_GITHUB_WORKSPACE}/ccache" >> ~/ccache.conf
+          echo "export CCACHE_BASEDIR=${CYGPATH_GITHUB_WORKSPACE}" >> ~/ccache.conf
+          echo "export CCACHE_COMPRESS=1" >> ~/ccache.conf
+          echo "export CCACHE_COMPRESSLEVEL=6" >> ~/ccache.conf
+          echo "export CCACHE_MAXSIZE=400M" >> ~/ccache.conf
+          source ~/ccache.conf
+          ccache -s
+          # Output the path for the ccache dir for the cache action
+          echo "CCACHE_DIR=$(cygpath -w ${CCACHE_DIR})" >> $GITHUB_OUTPUT
+          echo "BASEDIR=$(cygpath -w ${CCACHE_BASEDIR})" >> $GITHUB_OUTPUT
+      - name: ccache cache files
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup_ccache.outputs.CCACHE_DIR }}
+          key: ${{ steps.ccache_cache_timestamp.outputs.cache-key }}-ccache-${{steps.ccache_cache_timestamp.outputs.timestamp}}
+          restore-keys: ${{ steps.ccache_cache_timestamp.outputs.cache-key }}-ccache-  # restore ccache from either previous build on this branch or on base branch
+      - name: cache executable
+        id: sitl_exe_cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ steps.setup_ccache.outputs.BASEDIR }}/cxpilot-core/build/sitl/bin
+          # We name/cache the SITL based on the core SHA, since all the config stuff is baked into the companion files,
+          # not the compiled binary. This gives more cache hits, and fewer cluttered exe files in tester's downloads.
+          key: ${{ needs.set-up-variables.outputs.firmware_version }}-${{ needs.set-up-variables.outputs.core_sha }}-sitl-exe
+      - name: Prepare Python environment
+        env:
+          PATH: /usr/bin:$(cygpath ${SYSTEMROOT})/system32
+        shell: C:\cygwin\bin\bash.exe -eo pipefail '{0}'
+        run: >-
+          python3 --version &&
+          python3 -m pip install --progress-bar off empy==3.3.4 pexpect &&
+          python3 -m pip install --progress-bar off dronecan --upgrade &&
+          cp /usr/bin/ccache /usr/local/bin/ &&
+          cd /usr/local/bin && ln -s ccache /usr/local/bin/gcc &&
+          ln -s ccache /usr/local/bin/g++ &&
+          ln -s ccache /usr/local/bin/x86_64-pc-cygwin-gcc &&
+          ln -s ccache /usr/local/bin/x86_64-pc-cygwin-g++
+      - name: Build SITL
+        shell: C:\cygwin\bin\bash.exe -eo pipefail -o igncr '{0}'
+        run: |
+          echo "GITHUB_WORKSPACE=${GITHUB_WORKSPACE}"
+          CYGPATH_GITHUB_WORKSPACE=$(cygpath -u "$GITHUB_WORKSPACE")
+          git config --global --add safe.directory "${CYGPATH_GITHUB_WORKSPACE}"
+          export PATH=/usr/local/bin:/usr/bin:$(cygpath ${SYSTEMROOT})/system32
+          if [[ -n "${{ steps.sitl_exe_cache.outputs.cache-hit }}" ]]; then
+            echo "Using cached SITL executable"
+            NO_BUILD="--no-build"
+          else
+            echo "No cached SITL executable found, will build from scratch"
+            NO_BUILD=""
+            source ~/ccache.conf
+          fi
+          python ./tools/build/build_sitl.py -j 8 ${NO_BUILD}
+          if [[ -z "$NO_BUILD" ]]; then
+            ccache -s
+          fi
+          # Copy the binary to the output folder
+          if [[ ${{github.event_name}} == 'release' ]]; then
+            # For releases, we use the firmware name without the SHA, since it's unique
+            exe="${{needs.set-up-variables.outputs.firmware_version}}.exe"
+          else
+            sha="${{ needs.set-up-variables.outputs.core_sha }}"
+            sha="${sha:0:8}"
+            exe="${{ needs.set-up-variables.outputs.firmware_version }}-${sha}.exe"
+          fi
+          exe="sitl/${exe}"
+          cp -v cxpilot-core/build/sitl/bin/arduplane $exe
+          # Find all cyg*.dll files returned by cygcheck for each exe in artifacts and copy them over
+          cygcheck $exe | grep -oP 'cyg[^\s\\/]+\.dll' | while read -r line; do
+            cp -v /usr/bin/$line $(dirname $exe)
+          done
+          # Copy the launch.bat files to each frame folder
+          for d in sitl/*/ ; do
+            frame=$(basename "$d")
+            model=$(python ./tools/build/build_sitl.py --get-model="$frame")
+            echo "rem Launch at Eli Field" > "$d/launch.bat"
+            echo "cd %~dp0" >> "$d/launch.bat"
+            echo "..\\$(basename $exe) -O 40.0594626,-88.5513292,206.0,0 --serial0 tcp:0 -M $model --defaults=defaults.parm" >> "$d/launch.bat"
+          done
+      
+      - name: Upload SITL artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sitl
+          path: sitl
+          retention-days: 1
+
   create-upload-zip:
     runs-on: ubuntu-22.04
-    needs: [set-up-variables, build-aircraft, generate-cpns]
+    needs: [set-up-variables, build-aircraft, generate-cpns, build-sitl]
     env:
       folder_name: ${{ needs.set-up-variables.outputs.folder_name }}
     steps:
@@ -370,6 +506,21 @@ jobs:
           pattern: output-*
           path: output
           merge-multiple: true
+      - name: Download sitl
+        uses: actions/download-artifact@v5
+        with:
+          name: sitl
+          path: output/sitl
+      # Easier to upload the sitl folder at this stage than inside the windows container
+      - name: Upload SITL to S3
+        if: ${{ inputs.skip_s3_upload != 'false' }}
+        uses: ./.github/actions/s3-upload
+        with:
+          s3_path: ${{ needs.set-up-variables.outputs.s3_path }}/sitl
+          target: output/sitl
+          aws_key_id: ${{ secrets.AWS_S3_ACCESS_KEY_ID }}
+          aws_secret: ${{ secrets.AWS_S3_SECRET_ACCESS_KEY }}
+          aws_region: ${{ vars.AWS_S3_REGION }}
       - name: Install 7zip
         run: sudo apt-get install -y p7zip-full
       - name: 7zip the folder
@@ -387,6 +538,7 @@ jobs:
       - name: Upload to S3
         if: ${{ inputs.skip_s3_upload != 'false' }}
         uses: ./.github/actions/s3-upload
+
         with:
           s3_path: ${{ needs.set-up-variables.outputs.s3_path }}/${{ env.folder_name }}.7z
           target: ${{ env.folder_name }}.7z

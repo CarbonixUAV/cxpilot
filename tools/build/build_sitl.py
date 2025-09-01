@@ -16,7 +16,7 @@ common.add_config_tools_to_path()
 import sitl_tools  # noqa: E402
 
 
-def build_sitl(debug: bool = False):
+def build_sitl(debug: bool = False, waf_build_opts: list[str] = []) -> None:
     """
     Build SITL binary.
     """
@@ -27,8 +27,10 @@ def build_sitl(debug: bool = False):
     ]
     if debug:
         waf_args.append("--debug")
-    common.run_cmd(waf_args, cwd=CXPILOT_CORE_ROOT, env=env)
-    common.run_cmd(["./waf", "plane"], cwd=CXPILOT_CORE_ROOT, env=env)
+    common.run_cmd(waf_args, cwd=CXPILOT_CORE_ROOT)
+    waf_args = ["./waf", "plane"]
+    waf_args.extend(waf_build_opts)
+    common.run_cmd(waf_args, cwd=CXPILOT_CORE_ROOT)
 
 
 def _frame_cwd(frame_name: str) -> Path:
@@ -84,6 +86,7 @@ def main():
     parser.add_argument("--clean-runtime", action="store_true", help="Delete the runtime directories")
     parser.add_argument("--symlinks", action="store_true", help="Use symlinks instead of copying scripts/model.json")
     parser.add_argument("--no-build", action="store_true", help="Skip building SITL binary")
+    parser.add_argument("--jobs", "-j", type=int, help="Number of parallel build jobs (passed to waf)")
 
     args = parser.parse_args()
 
@@ -107,7 +110,10 @@ def main():
 
     # Build
     if not args.no_build:
-        build_sitl(debug=args.debug)
+        waf_build_opts = []
+        if args.jobs:
+            waf_build_opts.append(f"-j{args.jobs}")
+        build_sitl(debug=args.debug, waf_build_opts=waf_build_opts)
 
     # Prep runtime directories
     for frame in frames:

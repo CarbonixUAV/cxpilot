@@ -92,6 +92,7 @@
                     "45.69427,-118.83401,454.09,0|Pendleton|45.69427,-118.83401,454.09,0|\n",
                     "-33.6632464,150.8476093,8.6,0|Riverstone North|-33.6632464,150.8476093,8.6,0|\n",
                     "-33.6671869,150.8543972,27.8,0|Riverstone South|-33.6671869,150.8543972,27.8,0|\n",
+                    "RF_Garage|Joe's Garage|RF_Garage|\n",
                 ],
                 "fieldSeparator": "|",
                 "taskId": "location-coords",

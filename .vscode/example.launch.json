@@ -43,10 +43,14 @@
             "type": "debugpy",
             "request": "launch",
             "program": "${workspaceFolder}/cxpilot-core/Tools/autotest/autotest.py",
+            "preLaunchTask": "delete ROMFS_custom", // an old ROMFS_custom kicking around can screw up autotests
             "args": [
                 // "build.Plane",
+                // "build.Copter",
+                // "build.SITLPeriphUniversal",
                 // "--no-clean",
                 "test.QuadPlane.LoiterAltQLand",
+                // "test.CAN.CANGPSCopterMission",
             ],
             "console": "integratedTerminal",
         },

@@ -124,6 +124,15 @@
                 "isDefault": true,
             },
         },
+        {
+            "label": "delete ROMFS_custom",
+            "type": "shell",
+            "command": "rm -rf ${workspaceFolder}/cxpilot-core/ROMFS_custom",
+            "group": {
+                "kind": "build",
+                "isDefault": true,
+            },
+        }
     ],
     "inputs": [
         {

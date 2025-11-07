@@ -47,7 +47,7 @@ runs:
     - name: checkout core submodules (optional)
       if: ${{ inputs.core_submodules == 'true' && inputs.core_tools_only != 'true' }}
       shell: bash
-      run: git submodule update --init --recursive --depth ${{ inputs.depth }}
+      run: git -C cxpilot-core submodule update --init --recursive --depth ${{ inputs.depth }}
 
     - name: checkout cxpilot-config
       shell: bash

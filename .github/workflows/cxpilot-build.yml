@@ -203,10 +203,8 @@ jobs:
             CFG_NAME=$(gh repo view $CFG_URL --json name -q .name)
             STATUS_JSON="$(jq -c --arg k "$CFG_NAME" --arg v "$CFG_SHA" '. + {($k):$v}' <<<"$STATUS_JSON")"
           fi
-          if [[ "STATUS_JSON" != '{}' ]]; then
-            echo "status_json=$STATUS_JSON" >> "$GITHUB_OUTPUT"
-            echo "$STATUS_JSON" > status-map.json
-          fi
+          echo "status_json=$STATUS_JSON" >> "$GITHUB_OUTPUT"
+          echo "$STATUS_JSON" > status-map.json
 
       - name: Upload status map
         if: ${{ steps.out.outputs.status_json != '{}' }}

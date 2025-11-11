@@ -1,3 +1,43 @@
+Release 7.3.0 26th November 2025
+------------------------------------------------------------------
+
+This release introduces the automatic engine-out failsafe lua script, as well as some minor changes.
+
+Fleetwide Changes:
+
+- Built-in Test (BIT): the "RPM Drop" warning will trigger each individual time
+  that the ESC attempts to spool up and fails to do so
+- QAssist angle error threshold increased from 8 degrees to 15 degrees
+
+Ottano Changes:
+
+- Automatic engine-out failsafe lua script
+  - This reconfigures the autopilot for glide-only flight when the engine dies,
+    and makes a best-effort attempt to land at a designated alternate recovery
+    site
+- Built-in Test (BIT): reworded "CHT1 cold", "EGT2 cold", etc. warnings to "CHT
+  difference" and "EGT difference" respectively
+- Increased the EGT difference warning threshold from 50C to 75C
+- Avionics battery critical voltage reduced from 22V/10s to 21.5V/60s
+- PMU failure, falling back to avionics/backup battery, now triggers an RTL
+- Max settable airspeed reduced from 36m/s to 33m/s
+- QAssist speed decreased from 23m/s to 22m/s
+
+SITL Changes:
+
+- Fixed a bug where SITL was always autoconnecting to the trailer GCS like a
+  real aircraft
+
+Technical:
+
+- Completely restructured the codebase into three distinct repositories. This
+  will make it much easier going forward to keep up to date with ArduPilot
+  mainline changes:
+  - cxpilot: main integration and workflow host
+  - cxpilot-core: ArduPilot with minimal Carbonix patches and backports
+  - cxpilot-config: parameter and lua script management
+- Log CircuitStatus and Temperature messages from MKS servos
+
 Release 7.2.0 1st July 2025
 ------------------------------------------------------------------
 This is the first release for the Octo Ottano. This contains many small improvements to Ottano as a

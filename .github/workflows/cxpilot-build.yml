@@ -8,6 +8,7 @@ on:
       - 'tools/setup/**'
       - '.vscode/**'
       - '.github/workflows/nightly.yml'
+      - 'docs/**'
       - '**.md'
   release:
     types: [published]

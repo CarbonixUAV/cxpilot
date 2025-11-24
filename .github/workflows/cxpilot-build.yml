@@ -18,11 +18,6 @@ on:
         description: 'Feature branch (optional)'
         required: false
         default: ''
-      skip_s3_upload:
-        description: 'Skip upload to S3 (for testing)'
-        required: false
-        default: false
-        type: boolean
 
 permissions:
   contents: read
@@ -269,7 +264,6 @@ jobs:
           git config --global --add safe.directory ${GITHUB_WORKSPACE}
           python tools/build/build_aircraft.py  --clean --require-clean-git --config "${{ matrix.config }}"
       - name: Upload to S3
-        if: ${{ inputs.skip_s3_upload != 'false' }}
         uses: ./.github/actions/s3-upload
         with:
           s3_path: ${{ needs.set-up-variables.outputs.s3_path }}
@@ -339,7 +333,6 @@ jobs:
           set -e
           python tools/build/build_cpns.py --generate
       - name: Upload to S3
-        if: ${{ inputs.skip_s3_upload != 'false' }}
         uses: ./.github/actions/s3-upload
         with:
           s3_path: ${{ needs.set-up-variables.outputs.s3_path }}
@@ -525,7 +518,6 @@ jobs:
       folder_name: ${{ needs.set-up-variables.outputs.folder_name }}
     steps:
       - uses: actions/checkout@v5
-        if: ${{ inputs.skip_s3_upload != 'false' }}
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: false
@@ -543,7 +535,6 @@ jobs:
           path: output/sitl
       # Easier to upload the sitl folder at this stage than inside the windows container
       - name: Upload SITL to S3
-        if: ${{ inputs.skip_s3_upload != 'false' }}
         uses: ./.github/actions/s3-upload
         with:
           s3_path: ${{ needs.set-up-variables.outputs.s3_path }}/sitl
@@ -566,7 +557,6 @@ jobs:
           path: ${{ env.folder_name }}.7z
           retention-days: 15
       - name: Upload to S3
-        if: ${{ inputs.skip_s3_upload != 'false' }}
         uses: ./.github/actions/s3-upload
 
         with:

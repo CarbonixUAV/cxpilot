@@ -501,7 +501,7 @@ jobs:
       - name: Check Vehicle Parameters
         run: python cxpilot-config/tools/param_check.py --vehicle=Plane cxpilot-config/aircraft_params/**/*.par*m
       - name: Lua Checks
-        run:
+        run: |
           set -e
           sudo apt-get update
           sudo apt-get -y install lua-check

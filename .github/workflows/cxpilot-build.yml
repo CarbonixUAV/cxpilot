@@ -78,7 +78,6 @@ jobs:
             echo "  tag:     ${{ github.event.release.tag_name }}"
             FEATURE_REF=""
             BASE_REF="${{ github.event.release.tag_name }}"
-            S3_ROOT="${{ vars.S3_RELEASE_ROOT }}"
           else
             echo "ERROR: Unsupported event ${{ github.event_name }}" >&2
             exit 1
@@ -92,11 +91,11 @@ jobs:
           resolve_ref() {
             local url="$1" ref="$2" fb="$3"
             local sha found_ref
-            sha="$(git ls-remote --heads "$url" "refs/heads/$ref" | awk '{print $1}')"
+            sha="$(git ls-remote "$url" "refs/heads/$ref" "refs/tags/$ref" | awk '{print $1}')"
             if [[ -n "$sha" ]]; then
               found_ref="$ref"
             else
-              sha="$(git ls-remote --heads "$url" "refs/heads/$fb" | awk '{print $1}')"
+              sha="$(git ls-remote "$url" "refs/heads/$fb" "refs/tags/$fb" | awk '{print $1}')"
               if [[ -n "$sha" ]]; then
                 found_ref="$fb"
               else
@@ -156,7 +155,7 @@ jobs:
           COMMIT_ID="${INTEG_SHA:0:4}_${CORE_SHA:0:4}_${CFG_SHA:0:4}"
           if [[ ${{ github.event_name }} == 'release' ]]; then
             S3_ROOT="${{ vars.S3_RELEASE_ROOT }}"
-            FOLDER_NAME="${DATE_HR}_${FIRMWARE_VERSION}_${#INTEG_SHA:0:8}"
+            FOLDER_NAME="${DATE_HR}_${FIRMWARE_VERSION}_${INTEG_SHA:0:8}"
           elif [[ -n "$FEATURE_REF" ]]; then
             S3_ROOT="${{ vars.S3_DEV_ROOT }}/Feature/${BASE_REF//\//-}"
             # For feature builds, use the JIRA ID instead of the firmware version

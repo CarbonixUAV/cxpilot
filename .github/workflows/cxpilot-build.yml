@@ -500,6 +500,8 @@ jobs:
         run: python cxpilot-config/tools/param_check.py --vehicle=AP_Periph cxpilot-config/cpn_params/**/*.par*m
       - name: Check Vehicle Parameters
         run: python cxpilot-config/tools/param_check.py --vehicle=Plane cxpilot-config/aircraft_params/**/*.par*m
+      - name: Check SITL Parameters
+        run: python cxpilot-config/tools/param_check.py --vehicle=Plane cxpilot-config/sitl/params/**/*.par*m --no-redefinition
       - name: Lua Checks
         run: |
           set -e

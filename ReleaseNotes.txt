@@ -1,3 +1,61 @@
+Release 8.0.0 25th December 2025
+------------------------------------------------------------------
+
+Rebase of CxPilot onto ArduPilot 4.6.3. From the operator's perspective, there
+are no major functional changes to be aware of. This release fixes some
+edge-case bugs, adds some new options we may enable in the future.
+
+All changes listed in this release note will be technical changes.
+
+### Volanti Changes
+
+- Pusher ESC CPN no longer sends empty ESCX messages
+- ELRS receiver to match Ottano
+  - Set to Serial 4, which was previously used as the MAVLink pins on the RFD900
+    in engineering aircraft, but will no longer be supported
+  - Aircraft without RC receivers will be unaffected by this setting
+
+### ArduPilot 4.6 Release Notes
+
+This section is a small subset of the release notes from ArduPilot 4.6, with
+only the most relevant changes to Carbonix listed. In addition, the PR number is
+included to link to more discussion/code.
+
+#### Minor Fixes and Enhancements
+
+- Airspeed sensor health check fixed when using multiple sensors and AHRS
+  affinity (25272)
+- Arming check for EKF3 velocity innovations (29434)
+- EK3 uses filtered velocity corrections for IMU position (26808)
+- EKF3 copes better with GPS jamming (24899)
+- CRSF telemetry fixes (28478 and 29931)
+- Harmonic notch is active in forward flight on quadplanes (25442)
+- FBWB/CRUISE climb/sink rate limited by TECS limits (26856)
+- Fence re-enable after fence breach fixed (29730)
+- Fixed rudder output in VTOL modes (29494)
+- Improved QAssist and VTOL mode recovery from bad attitudes (29498)
+- Loiter breakout improved to better handle destinations inside loiter circle
+  (26102)
+- Prevent learning bad `ARSP_RATIO` values when not flying (29455)
+- QuadPlane assistance check enhancements (26318)
+- QuadPlane fix for QLand getting stuck in pilot repositioning (28568)
+- QuadPlane get smoother takeoff by input shaping target accel and velocity
+  (26573)
+- Terrain guided target intermediate alt handling fixed (29685)
+- "open directory failed" false warning when scripts in ROMFS fixed (26312)
+- Scripting gets memory handling improvements (26517)
+- Various scripting performance and memory usage optimizations (27630, 27426,
+  possibly others too)
+- MAVFTP respects TX buffer flow control to improve FTP on low bandwidth links
+  (26098)
+- MCU min/max voltage logging fix (29417)
+- Added option to disable IMU check with ICE running (30836)
+
+#### New Options (not yet used)
+
+- CAN frame logging added to ease support (28779)
+- `DO_RETURN_PATH_START` mission command support (28574)
+
 Release 7.3.0 26th November 2025
 ------------------------------------------------------------------
 

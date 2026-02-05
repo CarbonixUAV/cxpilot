@@ -130,6 +130,12 @@ At the end of the workflow, all aircraft builds and generated CPNs are merged
 into a single 7z archive and uploaded to S3 (both the archive and the individual
 files).
 
+## Nightly Builds
+
+`nightly.yml` runs on a schedule (weekday mornings Sydney time) and checks
+whether any of the three repos have new commits since the last successful
+nightly. If so, it dispatches the build workflow against the default branch.
+
 ## Status Posting
 
 The `post-status.yml` workflow listens for the build workflow to complete,

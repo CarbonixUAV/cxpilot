@@ -51,7 +51,7 @@ parameter configurations.
    ArduPilot or previous versions of CxPilot)
 
 6. Manually check out the default development branch on each repository
-   (`CxPilot-7` at time of writing, but that will soon change to `8`).
+   (e.g. `CxPilot-8`; the number tracks the major version).
 
     ![VSCode screenshot showing branches checked out](docs/images/vscode-submodule-branches.png)
 

@@ -43,7 +43,7 @@ parameter configurations.
    setup:
 
    ```bash
-   cd ../cxpilot-core/Tools/environment_install/
+   cd cxpilot-core/Tools/environment_install/
    ./install-prereqs-ubuntu.sh
    ```
 
@@ -129,7 +129,7 @@ Hit `ctrl-shift-B` to open the build task selector in VSCode
   - Builds and embeds board names and defaults in the firmware binaries for
     every CPN in the selected aircraft configuration
   - Binaries are copied to
-    `output/${aircraft_config}/${autopilot_boardname}/${cpn_name}`
+    `output/${aircraft_config}/${cpn_name}/`
 - **package full aircraft**
   - Builds everything needed for AFQT to flash the autopilot and CPNs
   - Equivalent to calling "build aircraft" followed by "build CPNs"

@@ -14,7 +14,7 @@ flight controller firmware, CAN peripherals, and SITL.
 ```plaintext
 output/<CONFIG>/ 
   <FC_BOARD>/
-    bin/                         # waf outputs
+    <waf firmware outputs>
     defaults.parm                # processed defaults
     extra_hwdef.dat              # processed hwdef modifications
     ROMFS_custom/
@@ -163,7 +163,7 @@ build_sitl.py --no-build
 Prepares the runtime directories for all frames without building the SITL binary.
 
 ```sh
-build_sitl.py --list-frames
+build_sitl.py --list
 ```
 
 Lists all the frames defined in `sitl_frames.json`.

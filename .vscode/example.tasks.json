@@ -118,7 +118,10 @@
         {
             "label": "core submodule nuke",
             "type": "shell",
-            "command": "rm -r ${workspaceFolder}/cxpilot-core/modules; ${workspaceFolder}/cxpilot-core/Tools/gittools/submodule-sync.sh",
+            "command": "rm -r modules && Tools/gittools/submodule-sync.sh",
+            "options": {
+                "cwd": "${workspaceFolder}/cxpilot-core",
+            },
             "group": {
                 "kind": "build",
                 "isDefault": true,

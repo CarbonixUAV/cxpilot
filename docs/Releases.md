@@ -26,3 +26,9 @@ to publish the release artifacts to the release folder in S3.
 This procedure is not enforced in CI on the release PR (though it should some
 day). The Build CI does enforce the tag/submodule SHA match when building
 though.
+
+The submodules are configured with `ignore = all` in `.gitmodules`. This
+prevents git from showing them as modified during development (when they're
+intentionally ahead of the parent repo's pointers). When preparing the release
+PR, you must explicitly stage the submodule updates with `git add cxpilot-core
+cxpilot-config` after checking out the tagged commits.

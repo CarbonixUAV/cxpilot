@@ -1,6 +1,8 @@
 [submodule "cxpilot-core"]
 	path = cxpilot-core
 	url = https://github.com/CarbonixUAV/cxpilot-core
+	ignore = all
 [submodule "cxpilot-config"]
 	path = cxpilot-config
 	url = https://github.com/CarbonixUAV/cxpilot-config
+	ignore = all

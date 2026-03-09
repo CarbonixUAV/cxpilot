@@ -133,6 +133,16 @@ python cxpilot-config/tools/cx_autotest.py --build
 - **Commit messages**: 50 characters max for summary line
 - **No Co-Authored-By**: These are stripped per user preference
 
+## Reviewing a Branch
+
+First check the current branch in all three repos. Repos on a base branch (`CxPilot-7`, `CxPilot-8`, `CxPilot-9`, etc.) are not under review; only review repos that have a `feature/*` branch checked out. Compare the feature branch against the base branch it diverged from.
+
+If you see a strange mix (mismatched feature branch names across repos, or a mix of `CxPilot-7` and `CxPilot-8`), alert the user before proceeding.
+
+## Lua Scripting
+
+The authoritative API reference for ArduPilot Lua scripting is `cxpilot-core/libraries/AP_Scripting/docs/docs.lua`. **Always consult this file** when reviewing or writing Lua scripts. Never rely on assumptions about return types, nullability, or available methods. If you can't find what you need in docs.lua, ask the user where to look.
+
 ## Common Pitfalls
 
 1. **Using `git submodule update` in integration repo** - Don't. Check out branches manually in config/core.

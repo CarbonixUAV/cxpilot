@@ -494,6 +494,8 @@ jobs:
         with:
           config_ref: ${{ needs.set-up-variables.outputs.config_sha }}
           core_ref:   ${{ needs.set-up-variables.outputs.core_sha }}
+      - name: Script Checksum Check
+        run: python cxpilot-config/tools/scr_checksum_check.py
       - name: Param Check Unittests
         run: python cxpilot-config/tools/param_check_unittests.py
       - name: Check Periph Parameters

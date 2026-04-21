@@ -1,3 +1,12 @@
+Release 8.0.2 20th April 2026
+------------------------------------------------------------------
+
+Minor parameter patch to allow Cube NET direct link through LTE1/2 for Ottano
+
+### Ottano Changes
+
+- Ottano: NET direct link through LTE1/2
+
 Release 8.0.1 8th April 2026
 ------------------------------------------------------------------
 

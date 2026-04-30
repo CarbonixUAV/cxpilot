@@ -116,7 +116,11 @@ def build_flight_controller_firmware(
         f"--board={board_name}",
         f"--default-parameters={DEFAULTS_FILE}",
         f"--extra-hwdef={EXTRA_HWDEF}",
-        "--debug-symbols"
+        "--debug-symbols",
+        # Iron-bird debug: enable ChibiOS per-thread runtime stats so the THRT
+        # logger can attribute preemption gaps to a specific thread. Remove
+        # before release builds.
+        "--enable-stats",
     ]
     if debug:
         waf_args.append("--debug")

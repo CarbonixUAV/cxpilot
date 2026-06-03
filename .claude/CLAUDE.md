@@ -128,6 +128,8 @@ python cxpilot-config/tools/cx_autotest.py --build
 
 **Artifacts**: S3 and GitHub (7z bundles, SITL executables)
 
+**Dependabot**: All three repos run Dependabot for the `github-actions` ecosystem (grouped, weekly, Monday 07:00 Sydney). On a `cxpilot-core` rebase, action-version bumps may conflict with upstream in `.github/workflows/*`—prefer upstream's version of the file and let Dependabot re-bump it. See [docs/Rebasing.md](../docs/Rebasing.md).
+
 ## Git Conventions
 
 - **Commit messages**: 50 characters max for summary line

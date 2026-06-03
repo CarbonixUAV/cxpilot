@@ -56,6 +56,20 @@ didn't need. One example of this is `764f6863eafe`.
 It's probably a good idea to take this time to confirm that the CarbonixF405 in
 master reflects what we want.
 
+### GitHub Actions Dependency Bumps
+
+We run our own Dependabot over core's (near-stock) CI workflows, so we no longer
+hand-cherry-pick upstream's dependency-bump commits to keep the trees aligned.
+The tradeoff: our Dependabot bumps land as Carbonix-local commits on top of
+stock workflow files, so on rebase any workflow file where upstream *also* moved
+an action pin will conflict.
+
+When that happens, **prefer upstream's version of the workflow file** rather than
+hand-merging version numbers. The next weekly Dependabot run re-bumps anything
+left stale, so reconciliation is automatic — don't burn time resolving action
+version conflicts during the rebase. See [CI.md](CI.md#dependency-updates) for
+the Dependabot setup.
+
 ## CxPilot-Config
 
 ### Feature Defines

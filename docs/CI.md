@@ -130,6 +130,23 @@ At the end of the workflow, all aircraft builds and generated CPNs are merged
 into a single 7z archive and uploaded to S3 (both the archive and the individual
 files).
 
+## Dependency Updates
+
+All three repos run Dependabot for the `github-actions` ecosystem
+(`.github/dependabot.yml` in each). It watches the third-party `uses:` pins in
+the workflow ymls (e.g. `actions/checkout@v5`, `cygwin/cygwin-install-action`)
+and opens PRs to bump them. Local composite actions (`./.github/actions/*`) are
+not versioned, so Dependabot ignores them.
+
+Updates are grouped into a single PR per repo and scheduled weekly for Monday
+07:00 Australia/Sydney (the IANA name, so AEST/AEDT is handled automatically).
+
+`cxpilot-core` is near-stock ArduPilot CI on purpose, and we deliberately run
+Dependabot over its upstream workflows too — keeping those actions current is
+the point. Note that the github-actions ecosystem scans *all* of
+`.github/workflows/`; there is no per-file filter. See
+[Rebasing.md](Rebasing.md) for how these bumps interact with upstream rebases.
+
 ## Nightly Builds
 
 `nightly.yml` runs on a schedule (weekday mornings Sydney time) and checks

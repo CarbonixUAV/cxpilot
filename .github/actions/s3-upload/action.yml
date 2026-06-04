@@ -24,7 +24,7 @@ runs:
   using: "composite"
   steps:
     - name: Install AWS CLI
-      if: ${{ inputs.install_aws_cli == 'true' }}
+      if: ${{ inputs.install_aws_cli == 'true' && github.actor != 'dependabot[bot]' }}
       shell: bash
       run: |
         set -e
@@ -34,7 +34,10 @@ runs:
         unzip -q awscliv2.zip
         ./aws/install --update
 
+    # Dependabot runs can't access secrets (AWS creds resolve empty), so skip
+    # the upload entirely — the build still compiles and verifies.
     - name: Configure AWS credentials
+      if: ${{ github.actor != 'dependabot[bot]' }}
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-access-key-id: ${{ inputs.aws_key_id }}
@@ -42,6 +45,7 @@ runs:
         aws-region: ${{ inputs.aws_region }}
 
     - name: Upload to S3
+      if: ${{ github.actor != 'dependabot[bot]' }}
       shell: bash
       run: |
         set -e

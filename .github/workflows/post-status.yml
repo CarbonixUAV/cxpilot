@@ -13,7 +13,7 @@ jobs:
     steps:
       - name: Check for status-map artifact
         id: probe
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const { owner, repo } = context.repo;
@@ -24,7 +24,7 @@ jobs:
 
       - if: ${{ steps.probe.outputs.found == 'true' }}
         name: Download status-map
-        uses: actions/download-artifact@v5
+        uses: actions/download-artifact@v8
         with:
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
@@ -32,7 +32,7 @@ jobs:
           path: .
 
       - if: ${{ steps.probe.outputs.found == 'true' }}
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         id: app
         with:
           app-id: ${{ secrets.CI_BOT_APP_ID }}
@@ -42,7 +42,7 @@ jobs:
 
       - if: ${{ steps.probe.outputs.found == 'true' }}
         name: Post final status
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           github-token: ${{ steps.app.outputs.token }} # or create-github-app-token first
           script: |

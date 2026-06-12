@@ -38,7 +38,7 @@ runs:
     # the upload entirely — the build still compiles and verifies.
     - name: Configure AWS credentials
       if: ${{ github.actor != 'dependabot[bot]' }}
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v6
       with:
         aws-access-key-id: ${{ inputs.aws_key_id }}
         aws-secret-access-key: ${{ inputs.aws_secret }}

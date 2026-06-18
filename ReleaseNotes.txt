@@ -1,3 +1,58 @@
+Release 8.1.0 25th June 2026
+------------------------------------------------------------------
+
+This release reworks how RTL rejoins the mission to land, and increases the
+engine idle RPM in flight. It also includes some minor improvements to the
+reverse transition.
+
+### Fleetwide Changes
+
+- RTL now rejoins the mission via `DO_RETURN_PATH_START` instead of
+  `DO_LAND_START`
+  - On RTL the aircraft rejoins the mission at the nearest leg of the designated
+    return path, not just the nearest `DO_LAND_START` marker.
+  - IMPORTANT: every mission must now contain a `DO_RETURN_PATH_START` item, or
+    the aircraft will refuse to arm
+- Fixed pitch oscillations during the VTOL approach (POSITION1) deceleration
+
+### Ottano Changes
+
+- Engine idle is now managed automatically in flight
+  - Raised to 3400 RPM in forward flight to keep the engine warm and the PMU
+    charging
+  - Drops to 2400 RPM in VTOL/approach
+- Engine idle governor now works in all disarmed modes, not just Manual
+
+### Technical
+
+#### Fleetwide Changes
+
+- Added true CPU-load logging (idle-hook based) via `BRD_IDLE_STATS` and the new
+  `PM2` log message (average and peak load)
+- Fixed servo-function and network default values reported to the GCS
+- Trimmed unused build features to recover some of the flash spent on the 4.6
+  rebase
+- Disabled the crash detector
+  - It could false-trigger and disarm in flight (has occurred in SITL), and it
+    has never successfully detected any of our crashes in real life.
+- `WP_RADIUS` is now read-only to prevent accidental changes
+- SITL: storage limits (e.g., for mission/fence/rally) now match physical
+  autopilot
+
+#### Ottano Changes
+
+- Added more fields to `EFIS` log message: namely RPM-sensor error count and ECU
+  engine-cut.
+- Reverted to a single direct NET connection from the Cube
+- Set `Q_LOIT_ACC_MAX` to its effective value (350) so it no longer shows as
+  non-default
+- Ottano AC1 and AC2 retired
+
+#### Volanti Changes
+
+- SITL: fixed phantom ~20A battery draw reported on the ground
+- Volanti AC2 retired
+
 Release 8.0.2 20th April 2026
 ------------------------------------------------------------------
 

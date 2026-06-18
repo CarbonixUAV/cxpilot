@@ -1,1 +1,1 @@
-CxPilot-8.1.0-dev
+CxPilot-8.1.0

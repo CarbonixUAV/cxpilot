@@ -24,6 +24,7 @@ def build_sitl(debug: bool = False, waf_build_opts: list[str] = []) -> None:
         "./waf", "configure",
         "--board=sitl",
         "--define", f"AP_CUSTOM_FIRMWARE_STRING=\"{common.get_cx_version()}\"",
+        "--define", "HAL_STORAGE_SIZE=32768",  # Match CubeOrangePlus FRAM
     ]
     if debug:
         waf_args.append("--debug")

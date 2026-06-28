@@ -42,7 +42,7 @@ jobs:
       bases:            ${{ steps.out.outputs.bases }}
       status_json:      ${{ steps.out.outputs.status_json }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           submodules: false
       - id: out
@@ -249,7 +249,7 @@ jobs:
       matrix:
         config: ${{ fromJson(needs.set-up-variables.outputs.configs) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: false
@@ -288,7 +288,7 @@ jobs:
       matrix:
         base: ${{ fromJson(needs.set-up-variables.outputs.bases) }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: false
@@ -312,7 +312,7 @@ jobs:
     runs-on: ubuntu-22.04
     needs: [set-up-variables, build-periph-bases]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: false
@@ -353,7 +353,7 @@ jobs:
     steps:
       # We can't use checkout-triple here because it's tricky with Cygwin,
       # so we manually checkout the right SHAs later
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: 'recursive'
@@ -405,14 +405,14 @@ jobs:
           echo "CCACHE_DIR=$(cygpath -w ${CCACHE_DIR})" >> $GITHUB_OUTPUT
           echo "BASEDIR=$(cygpath -w ${CCACHE_BASEDIR})" >> $GITHUB_OUTPUT
       - name: ccache cache files
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.setup_ccache.outputs.CCACHE_DIR }}
           key: ${{ steps.ccache_cache_timestamp.outputs.cache-key }}-ccache-${{steps.ccache_cache_timestamp.outputs.timestamp}}
           restore-keys: ${{ steps.ccache_cache_timestamp.outputs.cache-key }}-ccache-  # restore ccache from either previous build on this branch or on base branch
       - name: cache executable
         id: sitl_exe_cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ steps.setup_ccache.outputs.BASEDIR }}/cxpilot-core/build/sitl/bin
           # We name/cache the SITL based on the core SHA, since all the config stuff is baked into the companion files,
@@ -486,7 +486,7 @@ jobs:
     needs: set-up-variables
     container: ardupilot/ardupilot-dev-base:v0.1.3
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: false
@@ -521,7 +521,7 @@ jobs:
     env:
       folder_name: ${{ needs.set-up-variables.outputs.folder_name }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           ref: ${{ needs.set-up-variables.outputs.integration_sha }}
           submodules: false

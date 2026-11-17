@@ -349,6 +349,8 @@ jobs:
 
   build-sitl:
     runs-on: 'windows-latest'
+    # A from-scratch build normally takes under 30 min in total
+    timeout-minutes: 60
     needs: set-up-variables
     steps:
       # We can't use checkout-triple here because it's tricky with Cygwin,
@@ -446,6 +448,22 @@ jobs:
             NO_BUILD=""
             source ~/ccache.conf
           fi
+          # Watchdog: if the build hangs, dump the process list and every waf
+          # thread's Python stack, then abort waf so the step fails with them.
+          # The sleep holds no pipes, so killing the subshell on exit cannot
+          # leave the runner waiting on stdout.
+          export PYTHONFAULTHANDLER=1
+          (
+            sleep 2700 </dev/null >/dev/null 2>&1
+            echo "=== watchdog: SITL build still running after 45 min"
+            ps -efW || true
+            # Cygwin's procps has no pkill
+            for pid in $(ps -ef | awk '/[w]af-light plane/ {print $2}'); do
+              kill -ABRT "$pid" || true
+            done
+          ) &
+          WATCHDOG_PID=$!
+          trap 'kill "$WATCHDOG_PID" 2>/dev/null || true' EXIT
           python ./tools/build/build_sitl.py -j 8 ${NO_BUILD}
           if [[ -z "$NO_BUILD" ]]; then
             ccache -s
